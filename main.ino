@@ -50,6 +50,17 @@ bool SCREEN4_ACTIVE = false;
 // --- SD file handle ---
 File dataFile;
 
+// --- Gyro wrapper ---
+float get_gyro_x(void) { 
+    getGyroscope(); 
+    return Gyro.x; 
+}
+
+float get_gyro_y(void) { 
+    getGyroscope(); 
+    return Gyro.y; 
+}
+
 // --- Navigation & screen hook ---
 void NEXT_SCREEN_EVENT_CB(lv_event_t *e) {
     lv_obj_t *next = (lv_obj_t *)lv_event_get_user_data(e);
@@ -195,7 +206,8 @@ void setup(){
     Display_Init();
     Touch_Init();
 
-    SD_Init();  // SD card initialization
+    QMI8658_Init();  // initialize gyro sensor
+    SD_Init();        // initialize SD card
 
     // Create new CSV file
     char filename[16]; static int fileIndex=0;
@@ -213,7 +225,7 @@ void setup(){
     LABEL_TIMER   = ui_TIMER_LABEL;
     for(int i=0;i<4;i++) LABEL_LAPS[i] = ui_LAP_LABELS[i];
 
-    LOGIC_INIT();   // Start tasks and hooks
+    LOGIC_INIT();   // start tasks and hooks
 }
 
 void loop(){
