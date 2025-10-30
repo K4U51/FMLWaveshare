@@ -9,28 +9,17 @@ Here’s a clear, simple checklist for connecting SquareLine UI to your current 
 ```
 ⸻
 ```
-Screens
-	•	SPLASH
-	•	SCREEN1
-	•	SCREEN2
-	•	SCREEN3
-	•	SCREEN4
+Screens:
+- ui_SplashScreen      // splash screen
+- ui_GForceScreen      // screen showing moving dot
+- ui_PeaksScreen       // screen showing peak labels
+- ui_TimerScreen       // screen showing timer
+- ui_StampScreen       // screen used for stamping dot trail
 
-Moving Dot
-	•	DOT
-	•	SCREEN4_CONTAINER
-
-Labels
-	•	PEAK_LABEL
-	•	NEG_LABEL
-	•	TOTALX_LABEL
-	•	TIMER_LABEL
-	•	LAP_LABELS (array of 4)
-
-Buttons
-	•	LAP_BUTTON
-	•	RESET_BUTTON
-	•	SCREEN1_NEXT
-	•	SCREEN2_NEXT
-	•	SCREEN3_NEXT
-	•	SCREEN4_NEXT
+Objects:
+- ui_gforce_dot        // the moving G-Force dot on GForceScreen
+- ui_peakX_label       // Peak X label on PeaksScreen
+- ui_peakY_label       // Peak Y label on PeaksScreen
+- ui_peakZ_label       // Peak Z label on PeaksScreen
+- ui_timer_label       // Timer label on TimerScreen
+- ui_reset_button      // Button on TimerScreen to reset timer
