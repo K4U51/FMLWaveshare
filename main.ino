@@ -181,6 +181,25 @@ void DRIVER_LOOP_TASK(void *param) {
     }
 }
 
+// --- Gesture-based screen navigation ---
+void GESTURE_NAV_TASK(void *param){
+    while(1){
+        switch(touch_data.gesture){
+            case SWIPE_LEFT:
+                lv_scr_load_next();
+                touch_data.gesture = NONE;
+                break;
+            case SWIPE_RIGHT:
+                lv_scr_load_prev();
+                touch_data.gesture = NONE;
+                break;
+            default:
+                break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 // --- Initialize logic & LVGL tasks ---
 void LOGIC_INIT(){
     lv_obj_add_event_cb(lv_scr_act(), LV_SCR_CHANGE_HOOK, LV_EVENT_SCREEN_CHANGED, NULL);
@@ -196,6 +215,7 @@ void LOGIC_INIT(){
     xTaskCreate(SCREEN3_TIMER_TASK,"timer_task",4096,NULL,2,NULL);
     xTaskCreate(SCREEN4_STAMP_TASK,"stamp_task",4096,NULL,2,NULL);
     xTaskCreate(SD_LOG_TASK,"sd_log",4096,NULL,2,NULL);
+    xTaskCreate(GESTURE_NAV_TASK,"gesture_nav",4096,NULL,2,NULL);
 }
 
 // --- Arduino setup & loop ---
@@ -211,29 +231,6 @@ void setup() {
     LCD_Init();
     SD_Init();    // initialize SD after LCD
     Lvgl_Init();
-
     ui_init();    // SquareLine UI
 
-    // --- Link SquareLine labels ---
-    LABEL_PEAK_Y  = ui_PEAK_LABEL;
-    LABEL_NEG_Y   = ui_NEG_LABEL;
-    LABEL_TOTAL_X = ui_TOTALX_LABEL;
-    LABEL_TIMER   = ui_TIMER_LABEL;
-    for(int i=0;i<4;i++) LABEL_LAPS[i] = ui_LAP_LABELS[i];
-
-    // --- Link SquareLine buttons ---
-    lv_obj_add_event_cb(ui_LAP_BUTTON,   SCREEN3_LAP_CB,   LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_RESET_BUTTON, SCREEN3_RESET_CB, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_SCREEN1_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN2);
-    lv_obj_add_event_cb(ui_SCREEN2_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN3);
-    lv_obj_add_event_cb(ui_SCREEN3_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN4);
-    lv_obj_add_event_cb(ui_SCREEN4_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN1);
-
-    // --- Start LVGL logic tasks ---
-    LOGIC_INIT();
-}
-
-void loop() {
-    Lvgl_Loop();
-    vTaskDelay(pdMS_TO_TICKS(5));
-}
+    // --- Link SquareLine labels
