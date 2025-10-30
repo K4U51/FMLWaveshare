@@ -10,16 +10,25 @@ Here’s a clear, simple checklist for connecting SquareLine UI to your current 
 ⸻
 ```
 Screens:
-- ui_SplashScreen      // splash screen
-- ui_GForceScreen      // screen showing moving dot
-- ui_PeaksScreen       // screen showing peak labels
-- ui_TimerScreen       // screen showing timer
-- ui_StampScreen       // screen used for stamping dot trail
+Screen1          -> Splash screen (image: Splash.png)
+Screen2          -> G-Force screen (image: GForceBG.png)
+Screen3          -> Peaks screen (image: PeaksBG.png)
+Screen4          -> Timer screen (image: TimerBG.png)
+Screen5          -> Stamp screen (image: StampBG.png)
 
 Objects:
-- ui_gforce_dot        // the moving G-Force dot on GForceScreen
-- ui_peakX_label       // Peak X label on PeaksScreen
-- ui_peakY_label       // Peak Y label on PeaksScreen
-- ui_peakZ_label       // Peak Z label on PeaksScreen
-- ui_timer_label       // Timer label on TimerScreen
-- ui_reset_button      // Button on TimerScreen to reset timer
+
+Screen2 (G-Force screen):
+ui_gforce_dot    -> moving dot
+
+Screen3 (Peaks screen):
+ui_peakX_label   -> Peak X label
+ui_peakY_label   -> Peak Y label
+ui_peakZ_label   -> Peak Z label
+
+Screen4 (Timer screen):
+ui_timer_label   -> Timer label
+ui_reset_button  -> Button to reset timer
+
+Screen5 (Stamp screen):
+ui_StampLayer    -> layer/canvas for stamping G-force dot positions
