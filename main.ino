@@ -1,172 +1,148 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include "lvgl.h"
-#include "ui.h"                // SquareLine Studio UI
-#include "LVGL_Driver.h"
-#include "Display_ST7701.h"
-#include "Touch_CST820.h"
-#include "TCA9554PWR.h"
+#include "Wireless.h"
+#include "Gyro_QMI8658.h"
 #include "RTC_PCF85063.h"
-#include "SD_SPI.h"            // SD card logging
+#include "SD_Card.h"
+#include "LVGL_Driver.h"
+#include "ui.h"             // SquareLine Studio generated UI
+#include "BAT_Driver.h"
 
-// ================================
-// Config
-// ================================
-#define LVGL_TICK_MS 5
-#define GFORCE_SAMPLE_MS 10
+// ------------------------ GLOBALS ------------------------
+float AccelX = 0, AccelY = 0, AccelZ = 0;
+float PeakX = 0, PeakY = 0, PeakZ = 0;
+datetime_t rtc_time;
+char SD_buf[128];
+unsigned long startMillis = 0;
 
-// G-force tracking
-typedef struct {
-    float x, y, z;
-} accel_t;
+// ------------------------ DRIVER LOOP ------------------------
+void Driver_Loop(void *parameter)
+{
+    while(1)
+    {
+        QMI8658_Loop();   // Read gyro/accel
+        RTC_Loop();       // Read RTC
+        BAT_Get_Volts();  // Read battery voltage
 
-accel_t Accel;
-accel_t PeakAccel = {0,0,0};
+        // Update accelerometer values
+        AccelX = QMI8658_getX();
+        AccelY = QMI8658_getY();
+        AccelZ = QMI8658_getZ();
 
-// SD logging
-File sessionFile;
-int sessionNumber = 0;
+        // Track peak values
+        if(fabs(AccelX) > PeakX) PeakX = fabs(AccelX);
+        if(fabs(AccelY) > PeakY) PeakY = fabs(AccelY);
+        if(fabs(AccelZ) > PeakZ) PeakZ = fabs(AccelZ);
 
-// Forward declarations
-void Driver_Init();
-void UI_Init();
-void PlotGForce();
-void HandleGestures();
-void HandleButtons();
-void StartNewSession();
-void LogGForce();
+        // Log continuous session to SD card
+        snprintf(SD_buf, sizeof(SD_buf),
+                 "%04d-%02d-%02d %02d:%02d:%02d, X=%.2f, Y=%.2f, Z=%.2f, PeakX=%.2f, PeakY=%.2f, PeakZ=%.2f\n",
+                 rtc_time.year, rtc_time.month, rtc_time.day,
+                 rtc_time.hour, rtc_time.minute, rtc_time.second,
+                 AccelX, AccelY, AccelZ,
+                 PeakX, PeakY, PeakZ);
 
-// ================================
-// Setup
-// ================================
-void setup() {
-    Serial.begin(115200);
-    Wire.begin();
+        SD_Write_String(SD_buf);
 
-    Driver_Init();      // Init LCD, Touch, Backlight, Expander, RTC
-    Lvgl_Init();        // Init LVGL
-    UI_Init();          // SquareLine UI
-
-    StartNewSession();
+        vTaskDelay(pdMS_TO_TICKS(10)); // 100 Hz
+    }
 }
 
-// ================================
-// Main loop
-// ================================
-void loop() {
-    Lvgl_Loop();        // LVGL timer
-    HandleGestures();   // Swipe handling
-    HandleButtons();    // Reset / Lap buttons
-    PlotGForce();       // Plot moving dot
-    LogGForce();        // Log XYZ to SD
-    RTC_Loop();         // Update datetime
-
-    vTaskDelay(pdMS_TO_TICKS(GFORCE_SAMPLE_MS));
-}
-
-// ================================
-// Driver initialization
-// ================================
-void Driver_Init() {
-    TCA9554PWR_Init(0x00);
-    LCD_Init();
-    Touch_Init();
-    Backlight_Init();
+// ------------------------ DRIVER INIT ------------------------
+void Driver_Init()
+{
+    Flash_test();
+    BAT_Init();
+    I2C_Init();
+    TCA9554PWR_Init(0x00);   
+    Set_EXIO(EXIO_PIN8, Low);
     PCF85063_Init();
-    SD_Init();
+    QMI8658_Init(); 
+
+    xTaskCreatePinnedToCore(
+        Driver_Loop,
+        "Driver Task",
+        4096,
+        NULL,
+        3,
+        NULL,
+        0
+    );
 }
 
-// ================================
-// UI initialization
-// ================================
-void UI_Init() {
-    ui_init();  // SquareLine Studio
-    lv_obj_add_event_cb(ui_btn_reset, [](lv_event_t * e){
-        Serial.println("Reset clicked!");
-        StartNewSession();
-    }, LV_EVENT_CLICKED, NULL);
+// ------------------------ LVGL UI UPDATE ------------------------
+static void Update_UI(lv_timer_t * timer)
+{
+    // Move the dot based on X/Y accelerometer
+    lv_obj_set_pos(ui_dot_gforce, 120 + (int)(AccelX * 10), 120 + (int)(AccelY * 10));
 
-    lv_obj_add_event_cb(ui_btn_lap, [](lv_event_t * e){
-        Serial.println("Lap clicked!");
-        // You can capture peak & reset here if needed
-    }, LV_EVENT_CLICKED, NULL);
+    // Update peak labels
+    lv_label_set_text_fmt(ui_label_peakX, "Peak X: %.2f", PeakX);
+    lv_label_set_text_fmt(ui_label_peakY, "Peak Y: %.2f", PeakY);
+    lv_label_set_text_fmt(ui_label_peakZ, "Peak Z: %.2f", PeakZ);
+
+    // Update timer label
+    unsigned long elapsed = (millis() - startMillis) / 1000;
+    lv_label_set_text_fmt(ui_label_timer, "%02lu:%02lu", elapsed / 60, elapsed % 60);
 }
 
-// ================================
-// Handle swipe gestures
-// ================================
-void HandleGestures() {
-    if (touch_data.points > 0) {
-        switch(touch_data.gesture) {
-            case SWIPE_LEFT:
-                lv_scr_load_anim(ui_ScreenNext, LV_SCR_LOAD_ANIM_MOVE_LEFT, 300, 0, false);
-                break;
-            case SWIPE_RIGHT:
-                lv_scr_load_anim(ui_ScreenPrev, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0, false);
-                break;
-            default: break;
-        }
-        touch_data.points = 0;
-        touch_data.gesture = NONE;
-    }
+// ------------------------ LAP / RESET HANDLERS ------------------------
+static void Lap_Button_Callback(lv_event_t * e)
+{
+    // Log current lap to SD
+    snprintf(SD_buf, sizeof(SD_buf),
+             "LAP %04d-%02d-%02d %02d:%02d:%02d, PeakX=%.2f, PeakY=%.2f, PeakZ=%.2f\n",
+             rtc_time.year, rtc_time.month, rtc_time.day,
+             rtc_time.hour, rtc_time.minute, rtc_time.second,
+             PeakX, PeakY, PeakZ);
+    SD_Write_String(SD_buf);
+
+    // Reset peaks and timer for next lap
+    startMillis = millis();
+    PeakX = PeakY = PeakZ = 0;
 }
 
-// ================================
-// Handle buttons (Reset / Lap)
-// ================================
-void HandleButtons() {
-    // Already handled by LVGL events, nothing extra needed here
+static void Reset_Button_Callback(lv_event_t * e)
+{
+    // Reset entire session
+    startMillis = millis();
+    PeakX = PeakY = PeakZ = 0;
+
+    snprintf(SD_buf, sizeof(SD_buf),
+             "SESSION RESET %04d-%02d-%02d %02d:%02d:%02d\n",
+             rtc_time.year, rtc_time.month, rtc_time.day,
+             rtc_time.hour, rtc_time.minute, rtc_time.second);
+    SD_Write_String(SD_buf);
 }
 
-// ================================
-// Plot moving dot on gauge
-// ================================
-void PlotGForce() {
-    // Read accelerometer (replace with your driver call)
-    getAccelerometer(); // Fills Accel.x, Accel.y, Accel.z
+// ------------------------ SETUP ------------------------
+void setup()
+{
+    Serial.begin(115200);
 
-    // Update peaks
-    if(abs(Accel.x) > abs(PeakAccel.x)) PeakAccel.x = Accel.x;
-    if(abs(Accel.y) > abs(PeakAccel.y)) PeakAccel.y = Accel.y;
-    if(abs(Accel.z) > abs(PeakAccel.z)) PeakAccel.z = Accel.z;
+    Wireless_Test2();
+    Driver_Init();
 
-    // Map X/Y to UI dot position (adjust per screen resolution)
-    int dot_x = map((int)Accel.x, -4000, 4000, 0, LCD_WIDTH-1);
-    int dot_y = map((int)Accel.y, -4000, 4000, 0, LCD_HEIGHT-1);
+    LCD_Init();  
+    SD_Init();  
+    Lvgl_Init();
 
-    // Update LVGL object
-    lv_obj_set_pos(ui_gforce_dot, dot_x, dot_y);
+    // Load SquareLine UI
+    ui_init();
+    lv_scr_load(ui_Screen1);
 
-    // Optional: update numeric labels
-    char buf[16];
-    sprintf(buf,"X:%.2f",Accel.x); lv_label_set_text(ui_label_x, buf);
-    sprintf(buf,"Y:%.2f",Accel.y); lv_label_set_text(ui_label_y, buf);
-    sprintf(buf,"Z:%.2f",Accel.z); lv_label_set_text(ui_label_z, buf);
+    // Attach button callbacks
+    lv_obj_add_event_cb(ui_btn_lap, Lap_Button_Callback, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ui_btn_reset, Reset_Button_Callback, LV_EVENT_CLICKED, NULL);
+
+    // Start LVGL update timer (20 Hz)
+    lv_timer_create(Update_UI, 50, NULL);
+
+    startMillis = millis();
 }
 
-// ================================
-// Start new session (SD logging)
-// ================================
-void StartNewSession() {
-    if(sessionFile) sessionFile.close();
-    char filename[32];
-    sprintf(filename, "/session_%03d.csv", sessionNumber++);
-    sessionFile = SD.open(filename, FILE_WRITE);
-    if(sessionFile) {
-        sessionFile.println("Time,X,Y,Z");
-        Serial.printf("Logging to %s\n", filename);
-    }
-}
-
-// ================================
-// Log current G-force to SD
-// ================================
-void LogGForce() {
-    if(!sessionFile) return;
-    char buf[64];
-    char timebuf[32];
-    datetime_to_str(timebuf, datetime);
-    sprintf(buf, "%s,%.2f,%.2f,%.2f", timebuf, Accel.x, Accel.y, Accel.z);
-    sessionFile.println(buf);
-    sessionFile.flush();
+// ------------------------ LOOP ------------------------
+void loop()
+{
+    Lvgl_Loop();
+    vTaskDelay(pdMS_TO_TICKS(5));
 }
