@@ -1,6 +1,6 @@
 #include "LVGL_Example.h"
 // #include "LVGL_Music.h"
-#include <demos/lv_demos.h>
+//#include <demos/lv_demos.h>
 
 
 /**********************
@@ -615,6 +615,7 @@ void Backlight_adjustment_event_cb(lv_event_t * e) {
 void LVGL_Backlight_adjustment(uint8_t Backlight) {
   Set_Backlight(Backlight);                                 
 }
+
 
 
 
