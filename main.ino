@@ -3,7 +3,6 @@
 #include "RTC_PCF85063.h"
 #include "SD_Card.h"
 #include "LVGL_Driver.h"
-#include "LVGL_Example.h"
 #include "BAT_Driver.h"
 #include "lvgl.h"
 #include "ui.h"       // SquareLine UI
@@ -96,9 +95,9 @@ void SCREEN2_LABEL_TASK(void *param) {
             X_TOTAL += gx;
 
             char buf[32];
-            if (LABEL_PEAK_Y) { snprintf(buf,sizeof(buf),"Y+: %.2fg",Y_PEAK); lv_label_set_text(LABEL_PEAK_Y,buf);}
-            if (LABEL_NEG_Y)  { snprintf(buf,sizeof(buf),"Y-: %.2fg",Y_NEG); lv_label_set_text(LABEL_NEG_Y,buf);}
-            if (LABEL_TOTAL_X){ snprintf(buf,sizeof(buf),"X: %.2fg",X_TOTAL); lv_label_set_text(LABEL_TOTAL_X,buf);}
+            if (LABEL_PEAK_Y)   { snprintf(buf,sizeof(buf),"Y+: %.2fg",Y_PEAK); lv_label_set_text(LABEL_PEAK_Y,buf);}
+            if (LABEL_NEG_Y)    { snprintf(buf,sizeof(buf),"Y-: %.2fg",Y_NEG); lv_label_set_text(LABEL_NEG_Y,buf);}
+            if (LABEL_TOTAL_X)  { snprintf(buf,sizeof(buf),"X: %.2fg",X_TOTAL); lv_label_set_text(LABEL_TOTAL_X,buf);}
         }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
@@ -118,7 +117,7 @@ void SCREEN3_TIMER_TASK(void *param) {
     }
 }
 
-// Lap & Reset callbacks (link to SquareLine buttons)
+// Lap & Reset callbacks
 void SCREEN3_LAP_CB(lv_event_t *e) {
     if (!SCREEN3_ACTIVE) return;
     LAP_TIMES[LAP_IDX] = TIMER_VALUE;
@@ -132,7 +131,10 @@ void SCREEN3_LAP_CB(lv_event_t *e) {
 
 void SCREEN3_RESET_CB(lv_event_t *e) {
     TIMER_VALUE = 0; LAP_IDX = 0;
-    for(int i=0;i<4;i++){ LAP_TIMES[i]=0; if(LABEL_LAPS[i]) lv_label_set_text(LABEL_LAPS[i],"--:--.--");}
+    for(int i=0;i<4;i++){ 
+        LAP_TIMES[i]=0; 
+        if(LABEL_LAPS[i]) lv_label_set_text(LABEL_LAPS[i],"--:--.--");
+    }
     if(LABEL_TIMER) lv_label_set_text(LABEL_TIMER,"0.00 s");
     lv_event_set_ready(e);
 }
@@ -193,7 +195,7 @@ void setup(){
     Display_Init();
     Touch_Init();
 
-    SD_Init();  // initialize SD using your SD.cpp
+    SD_Init();  // SD card initialization
 
     // Create new CSV file
     char filename[16]; static int fileIndex=0;
@@ -203,14 +205,15 @@ void setup(){
     else dataFile.println("GX,GY,TIME");
 
     ui_init();      // SquareLine UI
-    LOGIC_INIT();   // start tasks and hooks
 
-    // Link your SquareLine labels here
-    // LABEL_PEAK_Y = ui_PEAK_LABEL;
-    // LABEL_NEG_Y  = ui_NEG_LABEL;
-    // LABEL_TOTAL_X= ui_TOTALX_LABEL;
-    // LABEL_TIMER  = ui_TIMER_LABEL;
-    // for(int i=0;i<4;i++) LABEL_LAPS[i]=ui_LAP_LABELS[i];
+    // --- Link labels from SquareLine ---
+    LABEL_PEAK_Y  = ui_PEAK_LABEL;
+    LABEL_NEG_Y   = ui_NEG_LABEL;
+    LABEL_TOTAL_X = ui_TOTALX_LABEL;
+    LABEL_TIMER   = ui_TIMER_LABEL;
+    for(int i=0;i<4;i++) LABEL_LAPS[i] = ui_LAP_LABELS[i];
+
+    LOGIC_INIT();   // Start tasks and hooks
 }
 
 void loop(){
