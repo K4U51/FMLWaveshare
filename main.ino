@@ -7,9 +7,18 @@
 #include "lvgl.h"
 #include "ui.h"       // SquareLine UI
 
-// --- Forward sensor functions ---
-float get_gyro_x(void);
-float get_gyro_y(void);
+#include "Wireless.h"
+#include "Gyro_QMI8658.h"
+#include "RTC_PCF85063.h"
+#include "SD_Card.h"
+#include "LVGL_Driver.h"
+#include "BAT_Driver.h"
+#include "lvgl.h"
+#include "ui.h"       // SquareLine UI
+
+// --- Forward functions for LVGL tasks ---
+float get_gyro_x() { return Gyro.x; }
+float get_gyro_y() { return Gyro.y; }
 
 // --- LVGL objects from SquareLine ---
 extern lv_obj_t *SPLASH;
@@ -50,17 +59,6 @@ bool SCREEN4_ACTIVE = false;
 // --- SD file handle ---
 File dataFile;
 
-// --- Gyro wrapper ---
-float get_gyro_x(void) { 
-    getGyroscope(); 
-    return Gyro.x; 
-}
-
-float get_gyro_y(void) { 
-    getGyroscope(); 
-    return Gyro.y; 
-}
-
 // --- Navigation & screen hook ---
 void NEXT_SCREEN_EVENT_CB(lv_event_t *e) {
     lv_obj_t *next = (lv_obj_t *)lv_event_get_user_data(e);
@@ -76,7 +74,7 @@ void LV_SCR_CHANGE_HOOK(lv_event_t *e) {
     TIMER_RUNNING = (act == SCREEN3);
 }
 
-// --- Logic tasks ---
+// --- LVGL Tasks ---
 // Screen1: moving dot
 void SCREEN1_DOT_TASK(void *param) {
     static float filtered_x = 0, filtered_y = 0;
@@ -182,7 +180,17 @@ void SD_LOG_TASK(void *param){
     }
 }
 
-// Initialize logic & tasks
+// --- FreeRTOS task for driver loop ---
+void DRIVER_LOOP_TASK(void *param) {
+    while(1){
+        QMI8658_Loop();
+        RTC_Loop();
+        BAT_Get_Volts();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+// --- Initialize logic & LVGL tasks ---
 void LOGIC_INIT(){
     lv_obj_add_event_cb(lv_scr_act(), LV_SCR_CHANGE_HOOK, LV_EVENT_SCREEN_CHANGED, NULL);
 
@@ -200,35 +208,33 @@ void LOGIC_INIT(){
 }
 
 // --- Arduino setup & loop ---
-void setup(){
+void setup() {
     Serial.begin(115200);
-    lv_init();
-    Display_Init();
-    Touch_Init();
 
-    QMI8658_Init();  // initialize gyro sensor
-    SD_Init();        // initialize SD card
+    // --- Driver Init ---
+    Wireless_Test2();
+    Driver_Init();  // initializes QMI8658, RTC, BAT, etc.
+    xTaskCreate(DRIVER_LOOP_TASK,"driver_loop",4096,NULL,3,NULL);
 
-    // Create new CSV file
-    char filename[16]; static int fileIndex=0;
-    do { snprintf(filename,sizeof(filename),"/RUN%03d.CSV",fileIndex++); } while(File_Search("/sdcard", filename));
-    dataFile = SD_MMC.open(filename, FILE_WRITE);
-    if(!dataFile) Serial.println("Failed to create file!");
-    else dataFile.println("GX,GY,TIME");
+    // --- Display & LVGL Init ---
+    LCD_Init();
+    SD_Init();    // initialize SD after LCD
+    Lvgl_Init();
 
-    ui_init();      // SquareLine UI
+    ui_init();    // SquareLine UI
 
-    // --- Link labels from SquareLine ---
+    // --- Link SquareLine labels ---
     LABEL_PEAK_Y  = ui_PEAK_LABEL;
     LABEL_NEG_Y   = ui_NEG_LABEL;
     LABEL_TOTAL_X = ui_TOTALX_LABEL;
     LABEL_TIMER   = ui_TIMER_LABEL;
     for(int i=0;i<4;i++) LABEL_LAPS[i] = ui_LAP_LABELS[i];
 
-    LOGIC_INIT();   // start tasks and hooks
+    // --- Start LVGL logic tasks ---
+    LOGIC_INIT();
 }
 
-void loop(){
-    lv_timer_handler();
-    delay(5);
+void loop() {
+    Lvgl_Loop();
+    vTaskDelay(pdMS_TO_TICKS(5));
 }
