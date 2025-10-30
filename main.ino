@@ -7,15 +7,6 @@
 #include "lvgl.h"
 #include "ui.h"       // SquareLine UI
 
-#include "Wireless.h"
-#include "Gyro_QMI8658.h"
-#include "RTC_PCF85063.h"
-#include "SD_Card.h"
-#include "LVGL_Driver.h"
-#include "BAT_Driver.h"
-#include "lvgl.h"
-#include "ui.h"       // SquareLine UI
-
 // --- Forward functions for LVGL tasks ---
 float get_gyro_x() { return Gyro.x; }
 float get_gyro_y() { return Gyro.y; }
@@ -229,6 +220,14 @@ void setup() {
     LABEL_TOTAL_X = ui_TOTALX_LABEL;
     LABEL_TIMER   = ui_TIMER_LABEL;
     for(int i=0;i<4;i++) LABEL_LAPS[i] = ui_LAP_LABELS[i];
+
+    // --- Link SquareLine buttons ---
+    lv_obj_add_event_cb(ui_LAP_BUTTON,   SCREEN3_LAP_CB,   LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ui_RESET_BUTTON, SCREEN3_RESET_CB, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ui_SCREEN1_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN2);
+    lv_obj_add_event_cb(ui_SCREEN2_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN3);
+    lv_obj_add_event_cb(ui_SCREEN3_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN4);
+    lv_obj_add_event_cb(ui_SCREEN4_NEXT, NEXT_SCREEN_EVENT_CB, LV_EVENT_CLICKED, SCREEN1);
 
     // --- Start LVGL logic tasks ---
     LOGIC_INIT();
