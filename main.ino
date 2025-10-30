@@ -14,6 +14,9 @@ datetime_t rtc_time;
 char SD_buf[128];
 unsigned long startMillis = 0;
 
+// Stamp layer for G-Force dot trail
+lv_obj_t * stamp_layer;
+
 // ------------------------ DRIVER LOOP ------------------------
 void Driver_Loop(void *parameter)
 {
@@ -72,7 +75,14 @@ void Driver_Init()
 static void Update_UI(lv_timer_t * timer)
 {
     // Move dot
-    lv_obj_set_pos(ui_gforce, 120 + (int)(AccelX * 10), 120 + (int)(AccelY * 10));
+    lv_obj_set_pos(ui_gforce_dot, 120 + (int)(AccelX * 10), 120 + (int)(AccelY * 10));
+
+    // Stamp dot on stamp_layer
+    lv_obj_t * dot = lv_obj_create(stamp_layer);
+    lv_obj_set_size(dot, 3, 3);
+    lv_obj_set_style_bg_color(dot, lv_color_make(255, 0, 0), 0);
+    lv_obj_set_style_border_width(dot, 0, 0);
+    lv_obj_set_pos(dot, 120 + (int)(AccelX * 10), 120 + (int)(AccelY * 10));
 
     // Update peak labels
     lv_label_set_text_fmt(ui_peakX_label, "Peak X: %.2f", PeakX);
@@ -82,17 +92,6 @@ static void Update_UI(lv_timer_t * timer)
     // Update timer
     unsigned long elapsed = (millis() - startMillis) / 1000;
     lv_label_set_text_fmt(ui_timer_label, "%02lu:%02lu", elapsed / 60, elapsed % 60);
-}
-
-// ------------------------ BUTTON HANDLER ------------------------
-void Button_Handler(lv_event_t * e)
-{
-    lv_event_code_t code = lv_event_get_code(e);
-    if(code == LV_EVENT_CLICKED) {
-        // Example: Reset peaks and timer
-        PeakX = PeakY = PeakZ = 0;
-        startMillis = millis();
-    }
 }
 
 // ------------------------ SETUP ------------------------
@@ -107,17 +106,24 @@ void setup()
     SD_Init();  
     Lvgl_Init();
 
-    // Load SquareLine UI
+    // Load SquareLine UI screens
     ui_init();
-    lv_scr_load(ui_Screen1);
+    lv_scr_load(ui_SplashScreen);  // splash screen
 
-    // Assign button handler
-    lv_obj_add_event_cb(ui_myButton, Button_Handler, LV_EVENT_ALL, NULL);
+    // Stamp screen container
+    stamp_layer = lv_obj_create(ui_StampScreen);
+    lv_obj_clear_flag(stamp_layer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(stamp_layer, 240, 240); // match plotting area
 
-    // Start LVGL timer for UI updates
-    lv_timer_create(Update_UI, 50, NULL); // 20 Hz UI refresh
+    // LVGL timer updates ~20 Hz
+    lv_timer_create(Update_UI, 50, NULL);
 
     startMillis = millis();
+
+    // Reset button clears only timer
+    lv_obj_add_event_cb(ui_reset_button, [](lv_event_t * e){
+        startMillis = millis();
+    }, LV_EVENT_CLICKED, NULL);
 }
 
 // ------------------------ LOOP ------------------------
