@@ -132,3 +132,22 @@ void loop()
     Lvgl_Loop();
     vTaskDelay(pdMS_TO_TICKS(5));
 }
+
+/*
+Notes:
+- Screens:
+    Screen1: Splash (Splash.png)
+    Screen2: G-Force (GForceBG.png)
+    Screen3: Peaks (PeaksBG.png)
+    Screen4: Timer (TimerBG.png)
+    Screen5: Stamp (StampBG.png)
+- Swipe gestures: Implement in SquareLine Studio if needed; SquareLine generates the event handlers in ui.c/.h.
+- Objects:
+    ui_gforce_dot
+    ui_peakX_label, ui_peakY_label, ui_peakZ_label
+    ui_timer_label
+    ui_reset_button
+    stamp_layer (created in main for stamping)
+- SD logging and driver loops remain active.
+- Reset button resets only timer, not peaks.
+*/
