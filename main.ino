@@ -21,25 +21,24 @@ void Driver_Loop(void *parameter)
     {
         QMI8658_Loop();   // Read gyro/accel
         RTC_Loop();       // Read RTC
-        BAT_Get_Volts();  // Read battery voltage
+        BAT_Get_Volts();  // Read battery
 
-        // Update accelerometer values
+        // Update peaks
         AccelX = QMI8658_getX();
         AccelY = QMI8658_getY();
         AccelZ = QMI8658_getZ();
 
-        // Track peak values
         if(fabs(AccelX) > PeakX) PeakX = fabs(AccelX);
         if(fabs(AccelY) > PeakY) PeakY = fabs(AccelY);
         if(fabs(AccelZ) > PeakZ) PeakZ = fabs(AccelZ);
 
-        // Log continuous session to SD card
+        // Log to SD
         snprintf(SD_buf, sizeof(SD_buf),
-                 "%04d-%02d-%02d %02d:%02d:%02d, X=%.2f, Y=%.2f, Z=%.2f, PeakX=%.2f, PeakY=%.2f, PeakZ=%.2f\n",
-                 rtc_time.year, rtc_time.month, rtc_time.day,
-                 rtc_time.hour, rtc_time.minute, rtc_time.second,
-                 AccelX, AccelY, AccelZ,
-                 PeakX, PeakY, PeakZ);
+            "%04d-%02d-%02d %02d:%02d:%02d, X=%.2f, Y=%.2f, Z=%.2f, PeakX=%.2f, PeakY=%.2f, PeakZ=%.2f\n",
+            rtc_time.year, rtc_time.month, rtc_time.day,
+            rtc_time.hour, rtc_time.minute, rtc_time.second,
+            AccelX, AccelY, AccelZ,
+            PeakX, PeakY, PeakZ);
 
         SD_Write_String(SD_buf);
 
@@ -72,46 +71,28 @@ void Driver_Init()
 // ------------------------ LVGL UI UPDATE ------------------------
 static void Update_UI(lv_timer_t * timer)
 {
-    // Move the dot based on X/Y accelerometer
-    lv_obj_set_pos(ui_dot_gforce, 120 + (int)(AccelX * 10), 120 + (int)(AccelY * 10));
+    // Move dot
+    lv_obj_set_pos(ui_gforce, 120 + (int)(AccelX * 10), 120 + (int)(AccelY * 10));
 
     // Update peak labels
-    lv_label_set_text_fmt(ui_label_peakX, "Peak X: %.2f", PeakX);
-    lv_label_set_text_fmt(ui_label_peakY, "Peak Y: %.2f", PeakY);
-    lv_label_set_text_fmt(ui_label_peakZ, "Peak Z: %.2f", PeakZ);
+    lv_label_set_text_fmt(ui_peakX_label, "Peak X: %.2f", PeakX);
+    lv_label_set_text_fmt(ui_peakY_label, "Peak Y: %.2f", PeakY);
+    lv_label_set_text_fmt(ui_peakZ_label, "Peak Z: %.2f", PeakZ);
 
-    // Update timer label
+    // Update timer
     unsigned long elapsed = (millis() - startMillis) / 1000;
-    lv_label_set_text_fmt(ui_label_timer, "%02lu:%02lu", elapsed / 60, elapsed % 60);
+    lv_label_set_text_fmt(ui_timer_label, "%02lu:%02lu", elapsed / 60, elapsed % 60);
 }
 
-// ------------------------ LAP / RESET HANDLERS ------------------------
-static void Lap_Button_Callback(lv_event_t * e)
+// ------------------------ BUTTON HANDLER ------------------------
+void Button_Handler(lv_event_t * e)
 {
-    // Log current lap to SD
-    snprintf(SD_buf, sizeof(SD_buf),
-             "LAP %04d-%02d-%02d %02d:%02d:%02d, PeakX=%.2f, PeakY=%.2f, PeakZ=%.2f\n",
-             rtc_time.year, rtc_time.month, rtc_time.day,
-             rtc_time.hour, rtc_time.minute, rtc_time.second,
-             PeakX, PeakY, PeakZ);
-    SD_Write_String(SD_buf);
-
-    // Reset peaks and timer for next lap
-    startMillis = millis();
-    PeakX = PeakY = PeakZ = 0;
-}
-
-static void Reset_Button_Callback(lv_event_t * e)
-{
-    // Reset entire session
-    startMillis = millis();
-    PeakX = PeakY = PeakZ = 0;
-
-    snprintf(SD_buf, sizeof(SD_buf),
-             "SESSION RESET %04d-%02d-%02d %02d:%02d:%02d\n",
-             rtc_time.year, rtc_time.month, rtc_time.day,
-             rtc_time.hour, rtc_time.minute, rtc_time.second);
-    SD_Write_String(SD_buf);
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_CLICKED) {
+        // Example: Reset peaks and timer
+        PeakX = PeakY = PeakZ = 0;
+        startMillis = millis();
+    }
 }
 
 // ------------------------ SETUP ------------------------
@@ -130,12 +111,11 @@ void setup()
     ui_init();
     lv_scr_load(ui_Screen1);
 
-    // Attach button callbacks
-    lv_obj_add_event_cb(ui_btn_lap, Lap_Button_Callback, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_reset, Reset_Button_Callback, LV_EVENT_CLICKED, NULL);
+    // Assign button handler
+    lv_obj_add_event_cb(ui_myButton, Button_Handler, LV_EVENT_ALL, NULL);
 
-    // Start LVGL update timer (20 Hz)
-    lv_timer_create(Update_UI, 50, NULL);
+    // Start LVGL timer for UI updates
+    lv_timer_create(Update_UI, 50, NULL); // 20 Hz UI refresh
 
     startMillis = millis();
 }
